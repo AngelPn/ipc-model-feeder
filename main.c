@@ -29,19 +29,28 @@ typedef struct shared_data{
 	long time_stamp;
 } shared_data;
 
-shared_data *ptr_shared_data;
+shared_data *shmem = NULL; //shmem is pointer to struct shared_date
 
 int SEMID=0;
 int SHMID=0;
 
 void create_shared_memory(){
-
-    if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) < 0){
+    if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
         printf("ERROR in shmget(): %s\n\n", strerror(errno));
         exit(1);
     }
+    //int *shar_mem = NULL;
+    if((shmem = (shared_data *)shmat(SHMID, 0, 0)) == (shared_data *)-1){
+        printf("ERROR in shmat(): %s\n\n", strerror(errno));
+        exit(1);
+    }
+}
 
-    ptr_shared_use = (struct shared_use *)((void *)attach(SHMID));
+void remove_shared_memory(int shmid){
+    struct shmid_ds dummy;
+
+    if((shmctl(shmid, IPC_RMID, &dummy)) < 0)
+        printf("ERROR in shmctl(): %s\n\n", strerror(errno));
 }
 
 int main(int argc, const char *argv[]){
@@ -64,7 +73,13 @@ int main(int argc, const char *argv[]){
     int num_values = atoi(argv[1]); //M
     int num_consumers = atoi(argv[2]); //n
 
+    //Create and Attach Shared Memory
     create_shared_memory(); //create shared memory and attach it to a global variable
+
+    //Detach and Remove Shared Memory
+    if(shmdt(shmem) < 0)
+        printf("ERROR in shmdt(): %s\n\n", strerror(errno));
+    remove_shared_memory(SHMID);
 
     return 0;
 }
