@@ -49,6 +49,20 @@ void up(int semid){
     }
 }
 
+void sem_init(int semid, int val){
+    union semun arg;
+    arg.val = val;
+    if (semctl(semid, 0, SETVAL, arg) < 0){
+        printf("ERROR in sem_init(): %s\n\n", strerror(errno));
+        exit(1);
+    }
+}
+
+void sem_remove(int semid){
+    if((semctl(semid, 0, IPC_RMID, 0)) < 0)
+        printf("ERROR in semctl(): %s\n\n", strerror(errno));
+}
+
 void create_shared_memory(){
     if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
         printf("ERROR in shmget(): %s\n\n", strerror(errno));
@@ -93,7 +107,6 @@ int main(int argc, const char *argv[]){
 
     int i, status;
     double avg_time = 0;
-
     pid_t pid;
 
     srand(time(NULL));
@@ -102,9 +115,7 @@ int main(int argc, const char *argv[]){
     int num_consumers = atoi(argv[2]); //n
 
     //Create and Attach Shared Memory
-    create_shared_memory(); //create shared memory and attach it to a global variable
-
-    int *values = calloc(num_values, sizeof(int)); //array of values
+    create_shared_memory();
 
     int *semaphores = calloc(num_consumers + 3, sizeof(int)); //array of semaphores
 
@@ -130,6 +141,8 @@ int main(int argc, const char *argv[]){
         else if(!pid) break;
     }
 
+    int *values = calloc(num_values, sizeof(int)); //array of values
+
     if(pid){ //parent - feeder
         printf("Feeder!\n");
         for(int k = 0; k < num_values; k++){
@@ -139,8 +152,9 @@ int main(int argc, const char *argv[]){
 
             shmem-> value = values[k];
             shmem -> time_stamp = get_current_time_with_ms();  //get current time in ms
-
-            for(int j = 3; j < num_consumers + 3; j++) up(semaphores[j]);//wake up all consumers
+            //wake up all consumers
+            for(int j = 3; j < num_consumers + 3; j++)
+                up(semaphores[j]);
 
             up(semaphores[2]); //memory is full
         }
@@ -193,6 +207,12 @@ int main(int argc, const char *argv[]){
 
         exit(0);
     }
+
+    while((wait(&status)) > 0);
+
+    free(values);
+    for(int j = 0; j < num_consumers + 3; j++)
+        sem_remove(semaphores[j]);
 
     //Detach and Remove Shared Memory
     if(shmdt(shmem) < 0)
