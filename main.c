@@ -54,7 +54,7 @@ void sem_init(int semid, int val){
     arg.val = val;
     if (semctl(semid, 0, SETVAL, arg) < 0){
         printf("ERROR in sem_init(): %s\n\n", strerror(errno));
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -66,12 +66,12 @@ void sem_remove(int semid){
 void create_shared_memory(){
     if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
         printf("ERROR in shmget(): %s\n\n", strerror(errno));
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     //int *shar_mem = NULL;
     if((shmem = (shared_data *)shmat(SHMID, 0, 0)) == (shared_data *)-1){
         printf("ERROR in shmat(): %s\n\n", strerror(errno));
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -122,7 +122,7 @@ int main(int argc, const char *argv[]){
     for(int j = 0; j < num_consumers + 3; j++){
         if ((semaphores[i] = semget(SEMKEY + j, 1, IPC_CREAT | PERMS)) < 0){
             printf("ERROR in semget(): %s\n\n", strerror(errno));
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -136,7 +136,7 @@ int main(int argc, const char *argv[]){
         printf("fork...\n");
         if((pid = fork())< 0){
             printf("ERROR in fork(): %s\n\n", strerror(errno));
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         else if(!pid) break;
     }
@@ -179,7 +179,6 @@ int main(int argc, const char *argv[]){
 
             down(semaphores[0]); //semaphore counter -1
 
-
             union semun arg;
             semValue = semctl(semaphores[0], 0, GETVAL, arg);
 
@@ -205,7 +204,7 @@ int main(int argc, const char *argv[]){
         fclose(fp);
         free(read_values);
 
-        exit(0);
+        exit(EXIT_SUCCESS);
     }
 
     while((wait(&status)) > 0);
