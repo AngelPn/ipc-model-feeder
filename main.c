@@ -3,7 +3,6 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 #include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
@@ -49,11 +48,11 @@ void up(int semid){
     }
 }
 
-void sem_init(int semid, int val){
+void sem_initialize(int semid, int val){
     union semun arg;
     arg.val = val;
     if (semctl(semid, 0, SETVAL, arg) < 0){
-        printf("ERROR in sem_init(): %s\n\n", strerror(errno));
+        printf("ERROR in sem_initialize(): %s\n\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 }
@@ -68,7 +67,6 @@ void create_shared_memory(){
         printf("ERROR in shmget(): %s\n\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    //int *shar_mem = NULL;
     if((shmem = (shared_data *)shmat(SHMID, 0, 0)) == (shared_data *)-1){
         printf("ERROR in shmat(): %s\n\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -77,63 +75,58 @@ void create_shared_memory(){
 
 void remove_shared_memory(int shmid){
     struct shmid_ds dummy;
-
     if((shmctl(shmid, IPC_RMID, &dummy)) < 0)
         printf("ERROR in shmctl(): %s\n\n", strerror(errno));
 }
 
-long get_current_time_with_ms (void){
-    long   ms;
-    time_t s;
+long get_current_time(){
     struct timespec spec;
-
     clock_gettime(CLOCK_REALTIME, &spec);
-
-    s  = spec.tv_sec;
-    ms = round(spec.tv_nsec / 1.0e6); // Convert nanoseconds to milliseconds
-
-    return ms;
+    return spec.tv_nsec;
 }
 
 int main(int argc, const char *argv[]){
+    //Arguments Handling
     if(argc < 3){
         printf("give <values> <consumers>\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     if(atoi(argv[1]) < 3000){
         printf("number of values must be > 3000\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    int i, status;
+    int i, j, status;
     double avg_time = 0;
     pid_t pid;
 
     srand(time(NULL));
 
-    int num_values = atoi(argv[1]); //M
-    int num_consumers = atoi(argv[2]); //n
+    int num_values = atoi(argv[1]); //get M
+    int num_consumers = atoi(argv[2]); //get n
 
     //Create and Attach Shared Memory
     create_shared_memory();
 
-    int *semaphores = calloc(num_consumers + 3, sizeof(int)); //array of semaphores
+    //Counting semaphores
+    int *semaphores = calloc(num_consumers + 3, sizeof(int));
 
-    for(int j = 0; j < num_consumers + 3; j++){
-        if ((semaphores[i] = semget(SEMKEY + j, 1, IPC_CREAT | PERMS)) < 0){
+    for(i = 0; i < num_consumers + 3; i++){
+        if ((semaphores[i] = semget(SEMKEY + i, 1, IPC_CREAT | PERMS)) < 0){
             printf("ERROR in semget(): %s\n\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
     }
 
-    sem_init(semaphores[0], num_consumers); //semaphore used for counting: start with n
-    sem_init(semaphores[1], 1); //empty
-    sem_init(semaphores[2], 0); //full
-    for(int j = 3; j < num_consumers + 3; j++) //initialize consumers
-        sem_init(semaphores[j], 0);
+    //Initialize semaphores
+    sem_initialize(semaphores[0], num_consumers); //semaphore for counting: start with n
+    sem_initialize(semaphores[1], 1); //empty
+    sem_initialize(semaphores[2], 0); //full
+    for(j = 3; j < num_consumers + 3; j++) //initialize consumers
+        sem_initialize(semaphores[j], 0);
 
-    for(int j = 0; j < num_consumers; j++){
-        printf("fork...\n");
+    for(i = 0; i < num_consumers; i++){
+        printf("fork\n");
         if((pid = fork())< 0){
             printf("ERROR in fork(): %s\n\n", strerror(errno));
             exit(EXIT_FAILURE);
@@ -146,71 +139,65 @@ int main(int argc, const char *argv[]){
     if(pid){ //parent - feeder
         printf("Feeder!\n");
         for(int k = 0; k < num_values; k++){
-            down(semaphores[1]); //feeder will start writing
+            down(semaphores[1]); //feeder will start writing: block feeder
 
-            values[k] = rand() % 100; //fill the feeder's array with values < 100
+            values[k] = rand() % 100; //fill the feeder's array
 
-            shmem-> value = values[k];
-            shmem -> time_stamp = get_current_time_with_ms();  //get current time in ms
+            shmem -> value = values[k];
+            shmem -> time_stamp = get_current_time();  //get current time in ms
             //wake up all consumers
-            for(int j = 3; j < num_consumers + 3; j++)
+            for(j = 3; j < num_consumers + 3; j++)
                 up(semaphores[j]);
 
             up(semaphores[2]); //memory is full
         }
     }
     else{ //child
-        int semValue;
+        int sem_value;
         FILE* fp = fopen("output", "w");
 
         int *read_values= calloc(num_values, sizeof(int));
 
-        printf("I'm the process child %d sem_pos = %d\n", getpid(), i);
+        printf("I'm the process child %d with semaphore position = %d\n", getpid(), i);
 
-        for(int j = 0; j < num_values; j++){
+        for(j = 0; j < num_values; j++){
             down(semaphores[i+3]);
-
             down(semaphores[2]); //other consumers need to wait
 
             read_values[j] = shmem -> value; //consumer keeps the value
 
-            avg_time += get_current_time_with_ms() - shmem -> time_stamp;
+            avg_time += get_current_time() - shmem -> time_stamp;
             avg_time /= 2;
 
             down(semaphores[0]); //semaphore counter -1
 
             union semun arg;
-            semValue = semctl(semaphores[0], 0, GETVAL, arg);
+            sem_value = semctl(semaphores[0], 0, GETVAL, arg);
 
-            if(!semValue) { //if all consumers have done their work
-                sem_init(semaphores[0], num_consumers); //reset counter
+            if(sem_value == 0) { //if all consumers have done their work
+                sem_initialize(semaphores[0], num_consumers); //reset counter
                 up(semaphores[1]); //unblock feeder
             }
             else up(semaphores[2]); //unblock next consumer
         }
 
-        if(!semValue){ //final int has been written
-            printf("Average delay time:\n");
-            printf("%.15lf ms\n", avg_time);
+        if(sem_value == 0){ //final int has been written
+            printf("Average delay time: %.15lf ns\n", avg_time);
 
-            fprintf(fp, "Consumer with PID %d has finished running\n", getpid());
-            fprintf(fp, "Output:\n");
+            fprintf(fp, "Consumer with PID %d has finished\n", getpid());
             for(int m = 0; m < num_values; m++)
                 fprintf(fp, "%d\n", read_values[m]);
-            fprintf(fp,"Average delay time:\n");
-            fprintf(fp,"%.15lf ms\n", avg_time);
+            fprintf(fp,"Average delay time: %.15lf ns\n", avg_time);
         }
-
         fclose(fp);
         free(read_values);
-
         exit(EXIT_SUCCESS);
     }
 
     while((wait(&status)) > 0);
 
     free(values);
-    for(int j = 0; j < num_consumers + 3; j++)
+    for(j = 0; j < num_consumers + 3; j++)
         sem_remove(semaphores[j]);
 
     //Detach and Remove Shared Memory

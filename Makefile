@@ -1,4 +1,9 @@
-project: main.c
-	gcc -o project main.c -lm -g
+OBJS= main.o
+CFLAGS = -g -Wall -I.
+PROGRAM= ipc
+
+$(PROGRAM): clean $(OBJS)
+	g++ -g $(OBJS) -o $(PROGRAM)
+
 clean:
-	-rm -f project
+	rm -f $(PROGRAM) $(OBJS)
