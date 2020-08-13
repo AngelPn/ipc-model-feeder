@@ -88,15 +88,15 @@ long get_current_time(){
 int main(int argc, const char *argv[]){
     //Arguments Handling
     if(argc < 3){
-        printf("give <values> <consumers>\n");
+        printf("Give <values> <consumers>\n");
         exit(EXIT_FAILURE);
     }
     if(atoi(argv[1]) < 3000){
-        printf("number of values must be > 3000\n");
+        printf("Number of values must be > 3000\n");
         exit(EXIT_FAILURE);
     }
 
-    int i, j, status;
+    int i, j, state;
     double avg_time = 0;
     pid_t pid;
 
@@ -142,9 +142,9 @@ int main(int argc, const char *argv[]){
             down(semaphores[1]); //feeder will start writing: block feeder
 
             values[k] = rand() % 100; //fill the feeder's array
-
-            shmem -> value = values[k];
-            shmem -> time_stamp = get_current_time();  //get current time in ms
+            
+            shmem -> value = values[k]; //value in shared memory
+            shmem -> time_stamp = get_current_time();  //time stamp is current time
             //wake up all consumers
             for(j = 3; j < num_consumers + 3; j++)
                 up(semaphores[j]);
@@ -158,7 +158,7 @@ int main(int argc, const char *argv[]){
 
         int *read_values= calloc(num_values, sizeof(int));
 
-        printf("I'm the process child %d with semaphore position = %d\n", getpid(), i);
+        printf("Process child %d with semaphore position = %d\n", getpid(), i);
 
         for(j = 0; j < num_values; j++){
             down(semaphores[i+3]);
@@ -166,7 +166,7 @@ int main(int argc, const char *argv[]){
 
             read_values[j] = shmem -> value; //consumer keeps the value
 
-            avg_time += get_current_time() - shmem -> time_stamp;
+            avg_time += get_current_time() - (shmem -> time_stamp);
             avg_time /= 2;
 
             down(semaphores[0]); //semaphore counter -1
@@ -174,14 +174,14 @@ int main(int argc, const char *argv[]){
             union semun arg;
             sem_value = semctl(semaphores[0], 0, GETVAL, arg);
 
-            if(sem_value == 0) { //if all consumers have done their work
+            if(sem_value == 0) { //if all consumers have finished
                 sem_initialize(semaphores[0], num_consumers); //reset counter
                 up(semaphores[1]); //unblock feeder
             }
             else up(semaphores[2]); //unblock next consumer
         }
 
-        if(sem_value == 0){ //final int has been written
+        if(sem_value == 0){ //final integer has been written
             printf("Average delay time: %.15lf ns\n", avg_time);
 
             fprintf(fp, "Consumer with PID %d has finished\n", getpid());
@@ -194,8 +194,9 @@ int main(int argc, const char *argv[]){
         exit(EXIT_SUCCESS);
     }
 
-    while((wait(&status)) > 0);
+    while((wait(&state)) > 0);
 
+    for(i=0;i<num_values;i++) printf("%d\n",values[i]);
     free(values);
     for(j = 0; j < num_consumers + 3; j++)
         sem_remove(semaphores[j]);
