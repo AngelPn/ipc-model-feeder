@@ -28,9 +28,24 @@ typedef struct shared_data{
 } shared_data;
 
 shared_data *shmem = NULL; //shmem is pointer to struct shared_data
-
-int SEMID=0;
 int SHMID=0;
+
+void create_shared_memory(){
+    if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
+        printf("ERROR in shmget(): %s\n\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    if((shmem = (shared_data *)shmat(SHMID, 0, 0)) == (shared_data *)-1){
+        printf("ERROR in shmat(): %s\n\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
+
+void remove_shared_memory(int shmid){
+    struct shmid_ds dummy;
+    if((shmctl(shmid, IPC_RMID, &dummy)) < 0)
+        printf("ERROR in shmctl(): %s\n\n", strerror(errno));
+}
 
 void down(int semid){
     struct sembuf sops = {.sem_num = 0, .sem_op = -1, .sem_flg = 0};
@@ -60,23 +75,6 @@ void sem_initialize(int semid, int val){
 void sem_remove(int semid){
     if((semctl(semid, 0, IPC_RMID, 0)) < 0)
         printf("ERROR in semctl(): %s\n\n", strerror(errno));
-}
-
-void create_shared_memory(){
-    if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
-        printf("ERROR in shmget(): %s\n\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    if((shmem = (shared_data *)shmat(SHMID, 0, 0)) == (shared_data *)-1){
-        printf("ERROR in shmat(): %s\n\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-}
-
-void remove_shared_memory(int shmid){
-    struct shmid_ds dummy;
-    if((shmctl(shmid, IPC_RMID, &dummy)) < 0)
-        printf("ERROR in shmctl(): %s\n\n", strerror(errno));
 }
 
 long get_current_time(){
@@ -120,8 +118,8 @@ int main(int argc, const char *argv[]){
 
     //Initialize semaphores
     sem_initialize(semaphores[0], num_consumers); //semaphore for counting: start with n
-    sem_initialize(semaphores[1], 1); //empty
-    sem_initialize(semaphores[2], 0); //full
+    sem_initialize(semaphores[1], 1); //empty: shared memory is empty
+    sem_initialize(semaphores[2], 0); //full: shared memory is not full
     for(j = 3; j < num_consumers + 3; j++) //initialize consumers
         sem_initialize(semaphores[j], 0);
 
@@ -139,7 +137,7 @@ int main(int argc, const char *argv[]){
     if(pid){ //parent - feeder
         printf("Feeder!\n");
         for(int k = 0; k < num_values; k++){
-            down(semaphores[1]); //feeder will start writing: block feeder
+            down(semaphores[1]); //the value of “empty” is reduced by 1 because one slot will be filled now
 
             values[k] = rand() % 100; //fill the feeder's array
             
@@ -149,7 +147,7 @@ int main(int argc, const char *argv[]){
             for(j = 3; j < num_consumers + 3; j++)
                 up(semaphores[j]);
 
-            up(semaphores[2]); //memory is full
+            up(semaphores[2]); //feeder has placed the item and thus the value of “full” is increased by 1
         }
     }
     else{ //child
@@ -162,7 +160,7 @@ int main(int argc, const char *argv[]){
 
         for(j = 0; j < num_values; j++){
             down(semaphores[i+3]);
-            down(semaphores[2]); //other consumers need to wait
+            down(semaphores[2]); //As the consumer is removing an item from buffer, the value of “full” is reduced by 1
 
             read_values[j] = shmem -> value; //consumer keeps the value
 
@@ -176,7 +174,7 @@ int main(int argc, const char *argv[]){
 
             if(sem_value == 0) { //if all consumers have finished
                 sem_initialize(semaphores[0], num_consumers); //reset counter
-                up(semaphores[1]); //unblock feeder
+                up(semaphores[1]); //all consumers has consumed the item, thus increasing the value of “empty” by 1
             }
             else up(semaphores[2]); //unblock next consumer
         }
@@ -196,7 +194,6 @@ int main(int argc, const char *argv[]){
 
     while((wait(&state)) > 0);
 
-    for(i=0;i<num_values;i++) printf("%d\n",values[i]);
     free(values);
     for(j = 0; j < num_consumers + 3; j++)
         sem_remove(semaphores[j]);

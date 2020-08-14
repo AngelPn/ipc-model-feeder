@@ -1,6 +1,6 @@
 OBJS= main.o
 CFLAGS = -g -Wall -I.
-PROGRAM= ipc
+PROGRAM= ex
 
 $(PROGRAM): clean $(OBJS)
 	g++ -g $(OBJS) -o $(PROGRAM)
