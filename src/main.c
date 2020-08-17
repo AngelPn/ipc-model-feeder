@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
-#include <sys/shm.h>
 #include <sys/signal.h>
 #include <sys/times.h>
 #include <sys/types.h>
