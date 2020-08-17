@@ -5,7 +5,7 @@
 #include <sys/shm.h>
 #include <sys/types.h>
 
-#include "shared_memory.h"
+#include "../include/shared_memory.h"
 
 void create_shared_memory(){
     if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
@@ -22,4 +22,9 @@ void remove_shared_memory(int shmid){
     struct shmid_ds dummy;
     if((shmctl(shmid, IPC_RMID, &dummy)) < 0)
         printf("ERROR in shmctl(): %s\n\n", strerror(errno));
+}
+
+void detach_shared_memory(void *addr){
+    if(shmdt(addr) < 0)
+        printf("ERROR in shmdt(): %s\n\n", strerror(errno));
 }

@@ -15,3 +15,4 @@ int SHMID;
 
 void create_shared_memory();
 void remove_shared_memory(int shmid);
+void detach_shared_memory(void *addr);

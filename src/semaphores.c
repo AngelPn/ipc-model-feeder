@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "semaphores.h"
+#include "../include/semaphores.h"
 
 void sem_initialize(int semid, int val){
     union semun arg;
@@ -33,7 +33,6 @@ void down(int semid){
         exit(getpid());
     }
 }
-
 
 void sem_remove(int semid){
     if((semctl(semid, 0, IPC_RMID, 0)) < 0)

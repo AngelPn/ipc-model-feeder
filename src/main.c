@@ -12,8 +12,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "semaphores.h"
-#include "shared_memory.h"
+#include "../include/semaphores.h"
+#include "../include/shared_memory.h"
 
 long get_current_time(){
     struct timespec spec;
@@ -136,8 +136,7 @@ int main(int argc, const char *argv[]){
         sem_remove(semaphores[j]);
 
     //Detach and Remove Shared Memory
-    if(shmdt(shmem) < 0)
-        printf("ERROR in shmdt(): %s\n\n", strerror(errno));
+    detach_shared_memory(shmem);
     remove_shared_memory(SHMID);
 
     return 0;
