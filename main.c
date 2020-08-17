@@ -12,70 +12,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#define PERMS 0666
-#define SHMKEY (key_t)1234
-#define SEMKEY (key_t)5678
-
-union semun{
-	int val;
-	struct semid_ds *buff;
-	unsigned short *array;
-};
-
-typedef struct shared_data{
-	int value;
-	long time_stamp;
-} shared_data;
-
-shared_data *shmem = NULL; //shmem is pointer to struct shared_data
-int SHMID=0;
-
-void create_shared_memory(){
-    if((SHMID = shmget(SHMKEY, sizeof(shared_data), PERMS | IPC_CREAT)) == -1){
-        printf("ERROR in shmget(): %s\n\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    if((shmem = (shared_data *)shmat(SHMID, 0, 0)) == (shared_data *)-1){
-        printf("ERROR in shmat(): %s\n\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-}
-
-void remove_shared_memory(int shmid){
-    struct shmid_ds dummy;
-    if((shmctl(shmid, IPC_RMID, &dummy)) < 0)
-        printf("ERROR in shmctl(): %s\n\n", strerror(errno));
-}
-
-void down(int semid){
-    struct sembuf sops = {.sem_num = 0, .sem_op = -1, .sem_flg = 0};
-    if((semop(semid, &sops, 1)) < 0){
-        printf("ERROR in semop(), on P() signal: %s\n\n", strerror(errno));
-        exit(getpid());
-    }
-}
-
-void up(int semid){
-    struct sembuf sops = {.sem_num = 0, .sem_op = 1, .sem_flg = 0};
-    if((semop(semid, &sops, 1)) < 0){
-        printf("ERROR in semop(), on V() signal: %s\n\n", strerror(errno));
-        exit(getpid());
-    }
-}
-
-void sem_initialize(int semid, int val){
-    union semun arg;
-    arg.val = val;
-    if (semctl(semid, 0, SETVAL, arg) < 0){
-        printf("ERROR in sem_initialize(): %s\n\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-}
-
-void sem_remove(int semid){
-    if((semctl(semid, 0, IPC_RMID, 0)) < 0)
-        printf("ERROR in semctl(): %s\n\n", strerror(errno));
-}
+#include "semaphores.h"
+#include "shared_memory.h"
 
 long get_current_time(){
     struct timespec spec;
@@ -94,14 +32,13 @@ int main(int argc, const char *argv[]){
         exit(EXIT_FAILURE);
     }
 
+    int num_values = atoi(argv[1]); //get M
+    int num_consumers = atoi(argv[2]); //get n
     int i, j, state;
     double avg_time = 0;
     pid_t pid;
 
     srand(time(NULL));
-
-    int num_values = atoi(argv[1]); //get M
-    int num_consumers = atoi(argv[2]); //get n
 
     //Create and Attach Shared Memory
     create_shared_memory();

@@ -1,4 +1,4 @@
-OBJS= main.o
+OBJS= main.o semaphores.o shared_memory.o
 CFLAGS = -g -Wall -I.
 PROGRAM= ex
 
