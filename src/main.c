@@ -116,12 +116,12 @@ int main(int argc, const char *argv[]){
         }
 
         if(sem_value == 0){ //final integer has been written
-            printf("Average delay time: %.15lf ns\n", avg_time);
+            printf("Average delay time: %.5lf ns\n", avg_time);
 
             fprintf(fp, "Consumer with PID %d has finished\n", getpid());
             for(int m = 0; m < num_values; m++)
                 fprintf(fp, "%d\n", read_values[m]);
-            fprintf(fp,"Average delay time: %.15lf ns\n", avg_time);
+            fprintf(fp,"Average delay time: %.5lf ns\n", avg_time);
         }
         fclose(fp);
         free(read_values);
