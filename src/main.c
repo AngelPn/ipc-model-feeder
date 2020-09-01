@@ -101,7 +101,7 @@ int main(int argc, const char *argv[]){
             read_values[j] = shmem -> value; //consumer keeps the value
 
             avg_time += get_current_time() - (shmem -> time_stamp);
-            avg_time /= 2;
+            avg_time /= j+1;
 
             down(semaphores[0]); //semaphore counter -1
 
